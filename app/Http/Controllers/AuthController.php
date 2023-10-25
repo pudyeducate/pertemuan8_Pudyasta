@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendMailJob;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +35,15 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password)
         ]);
+
+        $details = [
+            'subject' => "Konfiramsi Pendaftaran Akun",
+            'body' => "konfirmasi",
+            'name' => $request->name,
+            'email' => $request->email
+        ];
+        dispatch(new SendMailJob($details));
+
         $credentials = $request->only('email', 'password');
         Auth::attempt($credentials);
         $request->session()->regenerate();
