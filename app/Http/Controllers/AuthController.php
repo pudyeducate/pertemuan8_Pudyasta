@@ -30,10 +30,19 @@ class AuthController extends Controller
             'email' => 'required|email|max:250|unique:users',
             'password' => 'required|min:8|confirmed'
         ]);
+        if ($request->file('photo')) {
+            $filenameWithExt = $request->file('photo')->getClientOriginalName();
+            $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
+            $extension = $request->file('photo')->getClientOriginalExtension();
+            $filenameSimpan = $filename . '_' . time() . '.' . $extension;
+            $path = $request->file('photo')->storeAs('photos', $filenameSimpan);
+        }
+
         User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password)
+            'password' => Hash::make($request->password),
+            'photo' => $path
         ]);
 
         $details = [
@@ -42,7 +51,7 @@ class AuthController extends Controller
             'name' => $request->name,
             'email' => $request->email
         ];
-        dispatch(new SendMailJob($details));
+        // dispatch(new SendMailJob($details));
 
         $credentials = $request->only('email', 'password');
         Auth::attempt($credentials);
