@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Post;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 class GalleryController extends Controller
@@ -11,18 +13,19 @@ class GalleryController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $data = array(
-            'id' => "posts",
-            'menu' => 'Gallery',
-            'galleries' => Post::where(
-                'picture',
-                '!=',
-                ''
-            )->whereNotNull('picture')->orderBy('created_at', 'desc')->paginate(30)
-        );
-        return view('gallery.index')->with($data);
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $response = Http::get("http://127.0.0.1:8000/api/gallery?page=" . $request->page);
+        if ($response->successful()) {
+            $galleries = $response->json()['data'];
+            $paginator = new LengthAwarePaginator($galleries['data'], $galleries['total'],   10, $page, [
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+            ]);
+            return view('gallery.index', ['items' => $paginator]);
+        } else {
+            abort(500, 'Failed to retrieve data from the API');
+        }
     }
 
     /**
@@ -41,28 +44,38 @@ class GalleryController extends Controller
         $this->validate($request, [
             'title' => 'required|max:255',
             'description' => 'required',
-            'picture' => 'image|nullable|max:1999'
+            'picture' => 'image|required'
         ]);
-        if ($request->hasFile('picture')) {
-            $filenameWithExt = $request->file('picture')->getClientOriginalName();
-            $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
-            $extension = $request->file('picture')->getClientOriginalExtension();
-            $basename = uniqid() . time();
-            $smallFilename = "small_{$basename}.{$extension}";
-            $mediumFilename = "medium_{$basename}.{$extension}";
-            $largeFilename = "large_{$basename}.{$extension}";
-            $filenameSimpan = "{$basename}.{$extension}";
-            $path = $request->file('picture')->storeAs('posts_image', $filenameSimpan);
+
+
+        $file = request('picture');
+        $file_path = $file->getPathname();
+        $file_mime = $file->getMimeType('image');
+        $file_uploaded_name = $file->getClientOriginalName();
+
+        $client = new \GuzzleHttp\Client();
+        $res = $client->request("POST", "http://127.0.0.1:8000/api/gallery", [
+            'multipart' => [
+                [
+                    'name' => 'file',
+                    'filename' => $file_uploaded_name,
+                    'Mime-Type' => $file_mime,
+                    'contents' => fopen($file_path, 'r'),
+                ], [
+                    'name' => "title",
+                    'contents' => $request->title,
+                ],
+                [
+                    'name' => "description",
+                    'contents' => $request->description,
+                ],
+            ]
+        ]);
+        if ($res->getStatusCode() == 200) {
+            return redirect('gallery')->with('success', 'Berhasil menambahkan data baru');
         } else {
-            $filenameSimpan = 'noimage.png';
+            return redirect()->back()->withErrors(['custom_error' => 'Upload gagal']);
         }
-        // dd($request->input());
-        $post = new Post;
-        $post->picture = $filenameSimpan;
-        $post->title = $request->input('title');
-        $post->description = $request->input('description');
-        $post->save();
-        return redirect('gallery')->with('success', 'Berhasil menambahkan data baru');
     }
 
     /**
@@ -78,8 +91,8 @@ class GalleryController extends Controller
      */
     public function edit(string $id)
     {
-        
-        $post = Post::find($id);
+
+        $post = Http::get("http://127.0.0.1:8000/api/gallery/" . $id)->json()['data'];
         return view('gallery.edit', compact('post'));
     }
 
@@ -89,35 +102,56 @@ class GalleryController extends Controller
     public function update(Request $request, string $id)
     {
         $this->validate($request, [
-            'title' => 'required|max:255',
-            'description' => 'required',
-            'picture' => 'image|nullable|max:1999'
+            'title' => 'max:255',
+            'description' => '',
+            'picture' => 'image'
         ]);
-    
-        $post = Post::find($id);
-    
+        $client = new \GuzzleHttp\Client();
+        $url = "http://127.0.0.1:8000/api/gallery/" . $id;
+
         if ($request->hasFile('picture')) {
-            $image = $request->file('picture');
-            $image->storeAs('posts_image', $image->hashName());
+            $file = request('picture');
+            $file_path = $file->getPathname();
+            $file_mime = $file->getMimeType('image');
+            $file_uploaded_name = $file->getClientOriginalName();
 
-            //delete old image
-            Storage::delete('posts_image'.$post->image);
-            $post->picture = $image;
-            $post->update([
-                'picture'     => $request->file('picture')->hashName(),
-                'title'     => $request->title,
-                'description'   => $request->description
+            $res = $client->request("POST", $url, [
+                'multipart' => [
+                    [
+                        'name' => 'file',
+                        'filename' => $file_uploaded_name,
+                        'Mime-Type' => $file_mime,
+                        'contents' => fopen($file_path, 'r'),
+                    ], [
+                        'name' => "title",
+                        'contents' => $request->title,
+                    ],
+                    [
+                        'name' => "description",
+                        'contents' => $request->description,
+                    ],
+                ]
             ]);
-        }else{
-            $post->update([
-                'title'     => $request->title,
-                'description'   => $request->description
+        } else {
+            $res = $client->request("POST", $url, [
+                'multipart' => [
+                    [
+                        'name' => "title",
+                        'contents' => $request->title,
+                    ],
+                    [
+                        'name' => "description",
+                        'contents' => $request->description,
+                    ],
+                ]
             ]);
-
         }
-    
 
-        return redirect('gallery')->with('success', 'Post updated successfully');
+        if ($res->getStatusCode() == 200) {
+            return redirect('gallery')->with('success', 'Berhasil mengupdate data ');
+        } else {
+            return redirect()->back()->withErrors(['custom_error' => 'Update gagal']);
+        }
     }
 
     /**
@@ -125,16 +159,11 @@ class GalleryController extends Controller
      */
     public function destroy(string $id)
     {
-            // Find the record by its ID
-        $record = Post::find($id);
-
-        // Check if the record exists
-        if ($record) {
-            // Delete the record
-            $record->delete();
-            return redirect()->route('gallery.index')->with('success', 'Record deleted successfully.');
+        $response = Http::delete("http://127.0.0.1:8000/api/gallery/{$id}");
+        if ($response->successful()) {
+            return redirect()->route('gallery.index')->with('success', 'Data berhasil dihapus');
         } else {
-            return redirect()->route('gallery.index')->with('error', 'Record not found.');
+            return redirect()->route('gallery.index')->with('error', 'Data tidak ditemukan');
         }
     }
 }

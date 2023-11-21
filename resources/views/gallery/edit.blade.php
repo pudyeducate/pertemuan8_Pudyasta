@@ -9,7 +9,7 @@
                     <div class="card-header">{{ __('Edit User') }}</div>
 
                     <div class="card-body">
-                        <form method="POST" action="{{ route('gallery.update', $post->id) }}" enctype="multipart/form-data">
+                        <form method="POST" action="{{ route('gallery.update', $post['id']) }}" enctype="multipart/form-data">
                             @csrf
                             @method('PUT')
 
@@ -17,7 +17,7 @@
                                 <label for="title" class="col-md-4 col-form-label text-md-end text-start">Title</label>
                                 <div class="col-md-6">
                                     <input type="text" name="title" class="form-control" id="title"
-                                        value="{{ $post->title }}">
+                                        value="{{ $post['title'] }}">
 
                                     @error('title')
                                         <div class="alert alert-danger">{{ $message }}</div>
@@ -28,7 +28,7 @@
                                 <label for="description"
                                     class="col-md-4 col-form-label text-md-end text-start">Description</label>
                                 <div class="col-md-6">
-                                    <textarea class="form-control" id="description" rows="5" name="description">{{ $post->description }}</textarea>
+                                    <textarea class="form-control" id="description" rows="5" name="description">{{ $post['description'] }}</textarea>
                                     @error('description')
                                         <div class="alert alert-danger">{{ $message }}</div>
                                     @enderror

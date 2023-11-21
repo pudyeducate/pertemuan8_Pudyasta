@@ -5,7 +5,11 @@
             <div class="col-md-8">
                 <div class="card">
                     <div class="card-header">{{ __('Edit User') }}</div>
-
+                    @if($errors->has('error'))
+                        <div class="alert alert-danger">
+                            {{ $errors->first('erro') }}
+                        </div>
+                    @endif
                     <div class="card-body">
                         <form method="POST" action="{{ route('gallery.store') }}" enctype="multipart/form-data">
                             @csrf
