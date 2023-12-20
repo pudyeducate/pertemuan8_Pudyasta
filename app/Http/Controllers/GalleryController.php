@@ -56,7 +56,6 @@ class GalleryController extends Controller
         } else {
             $filenameSimpan = 'noimage.png';
         }
-        // dd($request->input());
         $post = new Post;
         $post->picture = $filenameSimpan;
         $post->title = $request->input('title');

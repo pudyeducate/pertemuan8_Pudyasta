@@ -89,7 +89,6 @@ class DashboardController extends Controller
 
     public function createThumbnail($path, $width, $height)
     {
-        dd($path);
         $img = Image::make($path)->resize($width, $height, function ($constraint) {
             $constraint->aspectRatio();
         });
